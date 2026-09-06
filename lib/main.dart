@@ -4,21 +4,15 @@ import 'audio_player_handler.dart';
 import 'ui/player_screen.dart';
 
 late AudioPlayerHandler audioHandler;
-late Future<void> _initFuture;
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  _initFuture = _initializeAudioService();
-  runApp(const MyApp());
-}
-
-Future<void> _initializeAudioService() async {
   try {
-    debugPrint('🔄 Starting AudioService initialization...');
+    print('🔄 Initializing AudioService...');
     audioHandler = await AudioService.init(
       builder: () {
-        debugPrint('📦 Creating AudioPlayerHandler...');
+        print('📦 Building AudioPlayerHandler...');
         return AudioPlayerHandler();
       },
       config: const AudioServiceConfig(
@@ -28,12 +22,13 @@ Future<void> _initializeAudioService() async {
         androidStopForegroundOnPause: true,
       ),
     );
-    debugPrint('✅ AudioService initialized successfully');
-  } catch (e, stackTrace) {
-    debugPrint('❌ Error initializing AudioService: $e');
-    debugPrint('Stack trace: $stackTrace');
-    rethrow;
+    print('✅ AudioService ready');
+  } catch (e) {
+    print('❌ AudioService Error: $e');
+    print('$e');
   }
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -43,32 +38,8 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Player Tela Bloqueada',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
-      home: FutureBuilder<void>(
-        future: _initFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Scaffold(
-              body: Center(
-                child: Text('Error: ${snapshot.error}'),
-              ),
-            );
-          }
-
-          return const PlayerScreen();
-        },
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
+      home: const PlayerScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

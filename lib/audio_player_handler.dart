@@ -54,7 +54,10 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       });
       session.becomingNoisyEventStream.listen((_) => _player.pause());
 
-      // 5) Build playlist from bundled assets.
+      // 5) Prepare artwork first (copy from assets to filesystem)
+      await _prepareArtwork();
+
+      // 6) Build playlist from bundled assets.
       final items = <MediaItem>[
         MediaItem(
           id: 'asset:///assets/audio/track1.mp3',
@@ -62,11 +65,9 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
           title: 'Faixa 1',
           artist: 'Artista de Teste',
           duration: null,
-          artUri: Uri.parse('asset:///assets/images/cover.jpg'),
+          artUri: _artworkPath != null ? Uri.file(_artworkPath!) : null,
         ),
       ];
-
-      await _prepareArtwork();
 
       queue.add(items);
       mediaItem.add(items.first);
