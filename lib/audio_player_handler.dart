@@ -10,12 +10,15 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   final _player = AudioPlayer();
   final _playlist = ConcatenatingAudioSource(children: []);
   String? _artworkPath;
+  bool _initialized = false;
 
   AudioPlayerHandler() {
     _init();
   }
 
   Future<void> _init() async {
+    if (_initialized) return;
+    _initialized = true;
     // 1) Configure audio session: playback category is required for lock screen.
     final session = await AudioSession.instance;
     await session.configure(const AudioSessionConfiguration.music());
@@ -50,8 +53,6 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     session.becomingNoisyEventStream.listen((_) => _player.pause());
 
     // 5) Build playlist from bundled assets.
-    await _prepareArtwork();
-
     final items = <MediaItem>[
       MediaItem(
         id: 'asset:///assets/audio/track1.mp3',
@@ -59,9 +60,11 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
         title: 'Faixa 1',
         artist: 'Artista de Teste',
         duration: null,
-        artUri: _artworkPath != null ? Uri.file(_artworkPath!) : null,
+        artUri: Uri.parse('asset:///assets/images/cover.jpg'),
       ),
     ];
+
+    await _prepareArtwork();
 
     queue.add(items);
     mediaItem.add(items.first);
@@ -76,14 +79,20 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> _prepareArtwork() async {
     try {
       final appDocDir = await getApplicationDocumentsDirectory();
-      _artworkPath = '${appDocDir.path}/cover.jpg';
+      final destPath = '${appDocDir.path}/cover.jpg';
+      final destFile = File(destPath);
 
-      // Copy artwork from assets to file system if not already there
-      final file = File(_artworkPath!);
-      if (!await file.exists()) {
-        final data = await rootBundle.load('assets/images/cover.jpg');
-        await file.writeAsBytes(data.buffer.asUint8List());
+      if (!await destFile.exists()) {
+        // Load from assets and write to documents directory
+        final assetData = await rootBundle.load('assets/images/cover.jpg');
+        await destFile.writeAsBytes(
+          assetData.buffer.asUint8List(
+            assetData.offsetInBytes,
+            assetData.lengthInBytes,
+          ),
+        );
       }
+      _artworkPath = destPath;
     } catch (e) {
       print('Error preparing artwork: $e');
       _artworkPath = null;
