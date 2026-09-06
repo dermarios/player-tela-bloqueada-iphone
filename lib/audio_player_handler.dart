@@ -19,61 +19,68 @@ class AudioPlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   Future<void> _init() async {
     if (_initialized) return;
     _initialized = true;
-    // 1) Configure audio session: playback category is required for lock screen.
-    final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.music());
 
-    // 2) Broadcast every just_audio event to audio_service.
-    // Without this, lock screen buttons won't reflect the real state.
-    _player.playbackEventStream.listen(_broadcastState);
+    try {
+      // 1) Configure audio session: playback category is required for lock screen.
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+      print('✓ AudioSession configured');
 
-    // 3) When track changes, update the current MediaItem (title/artwork on lock screen).
-    _player.currentIndexStream.listen((index) {
-      if (index != null && index < queue.value.length) {
-        mediaItem.add(queue.value[index]);
-      }
-    });
+      // 2) Broadcast every just_audio event to audio_service.
+      _player.playbackEventStream.listen(_broadcastState);
 
-    // 4) Handle interruptions (calls, other apps) and headphone disconnect.
-    session.interruptionEventStream.listen((event) {
-      if (event.begin) {
-        if (event.type == AudioInterruptionType.duck) {
-          _player.setVolume(0.3);
+      // 3) When track changes, update the current MediaItem.
+      _player.currentIndexStream.listen((index) {
+        if (index != null && index < queue.value.length) {
+          mediaItem.add(queue.value[index]);
+        }
+      });
+
+      // 4) Handle interruptions and headphone disconnect.
+      session.interruptionEventStream.listen((event) {
+        if (event.begin) {
+          if (event.type == AudioInterruptionType.duck) {
+            _player.setVolume(0.3);
+          } else {
+            _player.pause();
+          }
         } else {
-          _player.pause();
+          if (event.type == AudioInterruptionType.duck) {
+            _player.setVolume(1.0);
+          } else if (event.type == AudioInterruptionType.pause) {
+            _player.play();
+          }
         }
-      } else {
-        if (event.type == AudioInterruptionType.duck) {
-          _player.setVolume(1.0);
-        } else if (event.type == AudioInterruptionType.pause) {
-          _player.play();
-        }
-      }
-    });
-    session.becomingNoisyEventStream.listen((_) => _player.pause());
+      });
+      session.becomingNoisyEventStream.listen((_) => _player.pause());
 
-    // 5) Build playlist from bundled assets.
-    final items = <MediaItem>[
-      MediaItem(
-        id: 'asset:///assets/audio/track1.mp3',
-        album: 'Álbum de Teste',
-        title: 'Faixa 1',
-        artist: 'Artista de Teste',
-        duration: null,
-        artUri: Uri.parse('asset:///assets/images/cover.jpg'),
-      ),
-    ];
+      // 5) Build playlist from bundled assets.
+      final items = <MediaItem>[
+        MediaItem(
+          id: 'asset:///assets/audio/track1.mp3',
+          album: 'Álbum de Teste',
+          title: 'Faixa 1',
+          artist: 'Artista de Teste',
+          duration: null,
+          artUri: Uri.parse('asset:///assets/images/cover.jpg'),
+        ),
+      ];
 
-    await _prepareArtwork();
+      await _prepareArtwork();
 
-    queue.add(items);
-    mediaItem.add(items.first);
+      queue.add(items);
+      mediaItem.add(items.first);
 
-    // Load audio sources from assets
-    await _playlist.addAll([
-      for (final item in items) AudioSource.asset(_assetPath(item.id)),
-    ]);
-    await _player.setAudioSource(_playlist);
+      // Load audio sources from assets
+      await _playlist.addAll([
+        for (final item in items) AudioSource.asset(_assetPath(item.id)),
+      ]);
+      await _player.setAudioSource(_playlist);
+      print('✓ Player initialized successfully');
+    } catch (e) {
+      print('✗ Error initializing player: $e');
+      rethrow;
+    }
   }
 
   Future<void> _prepareArtwork() async {

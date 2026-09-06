@@ -4,21 +4,36 @@ import 'audio_player_handler.dart';
 import 'ui/player_screen.dart';
 
 late AudioPlayerHandler audioHandler;
+late Future<void> _initFuture;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  audioHandler = await AudioService.init(
-    builder: () => AudioPlayerHandler(),
-    config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.exemplo.player.audio',
-      androidNotificationChannelName: 'Reprodução de áudio',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
-    ),
-  );
-
+  _initFuture = _initializeAudioService();
   runApp(const MyApp());
+}
+
+Future<void> _initializeAudioService() async {
+  try {
+    debugPrint('🔄 Starting AudioService initialization...');
+    audioHandler = await AudioService.init(
+      builder: () {
+        debugPrint('📦 Creating AudioPlayerHandler...');
+        return AudioPlayerHandler();
+      },
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.exemplo.player.audio',
+        androidNotificationChannelName: 'Reprodução de áudio',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+      ),
+    );
+    debugPrint('✅ AudioService initialized successfully');
+  } catch (e, stackTrace) {
+    debugPrint('❌ Error initializing AudioService: $e');
+    debugPrint('Stack trace: $stackTrace');
+    rethrow;
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -32,7 +47,28 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const PlayerScreen(),
+      home: FutureBuilder<void>(
+        future: _initFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Scaffold(
+              body: Center(
+                child: Text('Error: ${snapshot.error}'),
+              ),
+            );
+          }
+
+          return const PlayerScreen();
+        },
+      ),
       debugShowCheckedModeBanner: false,
     );
   }
